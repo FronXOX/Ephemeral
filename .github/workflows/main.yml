@@ -29,10 +29,21 @@ jobs:
         run: |
           apt-get update
           apt-get install -y git curl wget tar unzip build-essential jq iproute2 xz-utils
+      - name: Install and configure Starship prompt
+        run: |
+          set -euo pipefail
+          echo "Installing Starship..."
+          curl -sS https://starship.rs/install.sh | sh -s -- -y
+          mkdir -p /root/.config
+          starship preset nerd-font-symbols -o /root/.config/starship.toml
+          echo 'eval "$(starship init bash)"' >> /root/.bashrc
+          echo 'eval "$(starship init bash)"' >> /etc/bash.bashrc
+          starship --version
       - name: Install and authenticate GitHub CLI (gh)
         run: |
           set -euo pipefail
           TOKEN_GITHUB_KEY="${{ secrets.TOKEN_GITHUB_KEY }}"
+          TOKEN_GITLAB_KEY="${{ secrets.TOKEN_GITLAB_KEY }}"
           [ -n "$TOKEN_GITHUB_KEY" ] || { echo "ERROR: TOKEN_GITHUB_KEY secret is not set." >&2; exit 1; }
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg status=none
           chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
@@ -41,8 +52,10 @@ jobs:
           apt-get install -y gh
           printf '%s' "$TOKEN_GITHUB_KEY" | gh auth login --with-token
           gh auth setup-git
-          printf 'GH_TOKEN=%s\nTOKEN_GITLAB_KEY=%s\n' "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
+          printf 'GH_TOKEN=%s\nGITHUB_TOKEN=%s\nTOKEN_GITHUB_KEY=%s\nTOKEN_GITLAB_KEY=%s\nGITLAB_TOKEN=%s\nGLAB_TOKEN=%s\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
           chmod 600 /root/.ephemeral-env
+          printf 'export GH_TOKEN="%s"\nexport GITHUB_TOKEN="%s"\nexport GITLAB_TOKEN="%s"\nexport GLAB_TOKEN="%s"\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /etc/profile.d/ephemeral-tokens.sh
+          chmod 644 /etc/profile.d/ephemeral-tokens.sh
           gh auth status
       - name: Install and authenticate GitLab CLI (glab)
         run: |
@@ -57,18 +70,18 @@ jobs:
           mkdir -p /tmp/glab && tar -xzf /tmp/glab.tgz -C /tmp/glab
           install -m 755 "$(find /tmp/glab -type f -name glab | head -n1)" /usr/local/bin/glab
           glab --version
-          glab auth login --hostname gitlab.com --token "$TOKEN_GITLAB_KEY"
+          printf '%s' "$TOKEN_GITLAB_KEY" | glab auth login --stdin --hostname gitlab.com
           glab config set git_protocol https --host gitlab.com
           glab auth status 2>&1 | head -5
-      # - name: Clone workspace repositories
-      #   run: |
-      #     set -euo pipefail
-      #     set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
-      #     mkdir -p /root/workspace && cd /root/workspace
-      #     git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/JourneyTo510.git"
-      #     git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/FronxTweaks.git"
-      #     git clone "https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/shovitdutta11/FronxMods.git"
-      #     ls -la /root/workspace
+      - name: Clone workspace repositories
+        run: |
+          set -euo pipefail
+          set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
+          mkdir -p /root/WorkHUB && cd /root/WorkHUB
+          gh repo clone FronXOX/FronxTweaks || git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/FronxTweaks.git"
+          gh repo clone FronXOX/JourneyTo510 || git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/JourneyTo510.git"
+          glab repo clone shovitdutta11/FronxMods || git clone "https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/shovitdutta11/FronxMods.git"
+          ls -la /root/WorkHUB
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
@@ -77,10 +90,11 @@ jobs:
           curl -fsSL https://bun.sh/install | bash
           bun --version
           uv --version
-          bun add -g opencode-ai @kilocode/cli @github/copilot
+          bun add -g gitnexus rea-agents mcp-ripgrep opencode-ai @kilocode/cli mcp-local-rag @playwright/mcp @github/copilot @yawlabs/fetch-mcp @upstash/context7-mcp @redf0x1/mcp-server-filesystem @modelcontextprotocol/server-sequential-thinking
           uv tool install hermes-agent || uv pip install --system hermes-agent
           echo "PATH=/root/.bun/bin:/root/.local/bin:$PATH" > /root/.ephemeral-path
-          echo "installed: $(ls /root/.bun/bin | tr '\n' ' ')"
+          echo "export PATH=\"/root/.bun/bin:/root/.local/bin:\$PATH\"" >> /etc/profile.d/ephemeral-path.sh
+          echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
       - name: Remove any public SSH exposure
         run: |
           for unit in ssh.socket ssh.service sshd.service; do
