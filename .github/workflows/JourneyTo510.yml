@@ -1,4 +1,4 @@
-name: Ephemeral Runner - JourneyTo510
+name: GitHub Ephemeral Runner - JourneyTo510
 on:
   workflow_dispatch:
     inputs:

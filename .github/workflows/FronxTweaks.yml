@@ -1,4 +1,4 @@
-name: Ephemeral Runner - FronxTweaks
+name: GitHub Ephemeral Runner - FronxTweaks
 on:
   workflow_dispatch:
     inputs:

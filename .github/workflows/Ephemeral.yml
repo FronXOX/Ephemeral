@@ -1,4 +1,4 @@
-name: GitHub Ephemeral Runner with Tailscale SSH
+name: GitHub Ephemeral Runner
 on:
   workflow_dispatch:
     inputs:
