@@ -63,15 +63,6 @@ jobs:
           glab auth login --hostname gitlab.com --token "$TOKEN_GITLAB_KEY"
           glab config set git_protocol https --host gitlab.com
           glab auth status 2>&1 | head -5
-      - name: Clone workspace repositories
-        run: |
-          set -euo pipefail
-          set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
-          mkdir -p /root/workspace && cd /root/workspace
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/FronXOX/FronxTweaks.git"
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/FronXOX/JourneyTo510.git"
-          git clone "https://oauth2:${GITLAB_TOKEN}@gitlab.com/shovitdutta11/FronxMods.git"
-          ls -la /root/workspace
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
