@@ -41,7 +41,7 @@ jobs:
           apt-get install -y gh
           printf '%s' "$TOKEN_GITHUB_KEY" | gh auth login --with-token
           gh auth setup-git
-          printf 'GH_TOKEN=%s\nGITLAB_TOKEN=%s\n' "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
+          printf 'GH_TOKEN=%s\nTOKEN_GITLAB_KEY=%s\n' "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
           chmod 600 /root/.ephemeral-env
           gh auth status
       - name: Install and authenticate GitLab CLI (glab)
@@ -60,15 +60,15 @@ jobs:
           glab auth login --hostname gitlab.com --token "$TOKEN_GITLAB_KEY"
           glab config set git_protocol https --host gitlab.com
           glab auth status 2>&1 | head -5
-      - name: Clone workspace repositories
-        run: |
-          set -euo pipefail
-          set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
-          mkdir -p /root/workspace && cd /root/workspace
-          git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/JourneyTo510.git"
-          git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/FronxTweaks.git"
-          git clone "https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/shovitdutta11/FronxMods.git"
-          ls -la /root/workspace
+      # - name: Clone workspace repositories
+      #   run: |
+      #     set -euo pipefail
+      #     set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
+      #     mkdir -p /root/workspace && cd /root/workspace
+      #     git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/JourneyTo510.git"
+      #     git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/FronxTweaks.git"
+      #     git clone "https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/shovitdutta11/FronxMods.git"
+      #     ls -la /root/workspace
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
