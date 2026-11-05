@@ -1,0 +1,201 @@
+name: Ephemeral Runner - FronxTweaks
+on:
+  workflow_dispatch:
+    inputs:
+      auto_renew:
+        description: 'Auto-renew chain by dispatching successor on exit'
+        required: false
+        default: 'true'
+        type: string
+permissions:
+  actions: write
+  contents: read
+jobs:
+  tailscale-ssh:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: sudo bash {0}
+    steps:
+      - name: Disable swap and clear heavy directories
+        run: |
+          swapoff -a
+          rm -f /mnt/swapfile /swapfile
+          rm -rf /usr/local/lib/android /usr/share/dotnet /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift /opt/ghc || true
+          docker system prune -af --volumes 2>/dev/null || true
+          apt-get clean || true
+      - name: Extreme cleanup - nuke all pre-installed tools
+        uses: rokibhasansagar/slimhub_actions@main
+      - name: Install Node.js and Python
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates curl gnupg python3 python3-pip python3-venv python3-dev
+          curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+          apt-get install -y nodejs
+      - name: Install base utilities
+        run: |
+          apt-get update
+          apt-get install -y git curl wget tar unzip build-essential jq iproute2 xz-utils
+      - name: Install and configure Starship prompt
+        run: |
+          set -euo pipefail
+          echo "Installing Starship..."
+          curl -sS https://starship.rs/install.sh | sh -s -- -y
+          mkdir -p /root/.config
+          starship preset nerd-font-symbols -o /root/.config/starship.toml
+          echo 'eval "$(starship init bash)"' >> /root/.bashrc
+          echo 'eval "$(starship init bash)"' >> /etc/bash.bashrc
+          starship --version
+      - name: Install and authenticate GitHub CLI (gh)
+        run: |
+          set -euo pipefail
+          TOKEN_GITHUB_KEY="${{ secrets.TOKEN_GITHUB_KEY }}"
+          TOKEN_GITLAB_KEY="${{ secrets.TOKEN_GITLAB_KEY }}"
+          [ -n "$TOKEN_GITHUB_KEY" ] || { echo "ERROR: TOKEN_GITHUB_KEY secret is not set." >&2; exit 1; }
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg status=none
+          chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+          apt-get update
+          apt-get install -y gh
+          printf '%s' "$TOKEN_GITHUB_KEY" | gh auth login --with-token
+          gh auth setup-git
+          printf 'GH_TOKEN=%s\nGITHUB_TOKEN=%s\nTOKEN_GITHUB_KEY=%s\nTOKEN_GITLAB_KEY=%s\nGITLAB_TOKEN=%s\nGLAB_TOKEN=%s\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
+          chmod 600 /root/.ephemeral-env
+          printf 'export GH_TOKEN="%s"\nexport GITHUB_TOKEN="%s"\nexport GITLAB_TOKEN="%s"\nexport GLAB_TOKEN="%s"\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /etc/profile.d/ephemeral-tokens.sh
+          chmod 644 /etc/profile.d/ephemeral-tokens.sh
+          gh auth status
+      - name: Install and authenticate GitLab CLI (glab)
+        run: |
+          set -euo pipefail
+          TOKEN_GITLAB_KEY="${{ secrets.TOKEN_GITLAB_KEY }}"
+          [ -n "$TOKEN_GITLAB_KEY" ] || { echo "ERROR: TOKEN_GITLAB_KEY secret is not set." >&2; exit 1; }
+          REL="$(curl -fsSL 'https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases?per_page=1')"
+          TAG="$(jq -r '.[0].tag_name' <<<"$REL")"
+          VER="${TAG#v}"
+          ENC="${VER//./%2E}"
+          curl -fsSL "https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/packages/generic/glab/${ENC}/glab_${VER}_linux_amd64.tar.gz" -o /tmp/glab.tgz
+          mkdir -p /tmp/glab && tar -xzf /tmp/glab.tgz -C /tmp/glab
+          install -m 755 "$(find /tmp/glab -type f -name glab | head -n1)" /usr/local/bin/glab
+          glab --version
+          printf '%s' "$TOKEN_GITLAB_KEY" | glab auth login --stdin --hostname gitlab.com
+          glab config set git_protocol https --host gitlab.com
+          git config --global url."https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/".insteadOf "https://gitlab.com/"
+          glab auth status 2>&1 | head -5
+      - name: Clone workspace repository (FronxTweaks)
+        run: |
+          set -euo pipefail
+          set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
+          cd /root
+          gh repo clone FronXOX/FronxTweaks
+          ls -la /root/FronxTweaks
+          echo '[ -d /root/FronxTweaks ] && cd /root/FronxTweaks' >> /root/.bashrc
+      - name: Install bun, uv, and agent CLIs
+        run: |
+          set -euo pipefail
+          export PATH="/root/.bun/bin:/root/.local/bin:$PATH"
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl -fsSL https://bun.sh/install | bash
+          bun --version
+          uv --version
+          bun add -g gitnexus rea-agents mcp-ripgrep opencode-ai @kilocode/cli mcp-local-rag @playwright/mcp @github/copilot @yawlabs/fetch-mcp @upstash/context7-mcp @redf0x1/mcp-server-filesystem @modelcontextprotocol/server-sequential-thinking
+          uv tool install hermes-agent || uv pip install --system hermes-agent
+          echo "PATH=/root/.bun/bin:/root/.local/bin:$PATH" > /root/.ephemeral-path
+          echo "export PATH=\"/root/.bun/bin:/root/.local/bin:\$PATH\"" >> /etc/profile.d/ephemeral-path.sh
+          echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
+      - name: Remove any public SSH exposure
+        run: |
+          for unit in ssh.socket ssh.service sshd.service; do
+            systemctl disable --now "$unit" 2>/dev/null || true
+            systemctl mask "$unit" 2>/dev/null || true
+          done
+          ss -ltnH 'sport = :22' || true
+      - name: Install, connect, and enable Tailscale SSH
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          tailscale up --auth-key="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="github-ephemeral-fronxtweaks-${{ github.run_id }}" --ssh --accept-risk=lose-ssh --timeout=120s
+          TS_IP=""
+          for _ in $(seq 1 45); do
+            TS_IP="$(tailscale ip -4 2>/dev/null | head -n1 || true)"
+            [ -n "$TS_IP" ] && break
+            sleep 2
+          done
+          if [ -z "$TS_IP" ]; then
+            echo "ERROR: Tailscale did not assign an IPv4 address." >&2
+            exit 1
+          fi
+          if [ "$(tailscale debug prefs | jq -r .RunSSH)" != "true" ]; then
+            echo "ERROR: Tailscale SSH is not enabled." >&2
+            exit 1
+          fi
+          TS_DNS="$(tailscale status --json | jq -r '.Self.DNSName | rtrimstr(".")')"
+          echo "Tailscale DNS name: $TS_DNS"
+          echo "Tailscale IP: $TS_IP"
+          echo "SSH alias on your machine: GitHub-Ephemeral"
+      - name: Verify SSH is only reachable through Tailscale
+        run: |
+          set -uo pipefail
+          status=0
+          if [ "$(tailscale debug prefs | jq -r .RunSSH)" != "true" ]; then
+            echo "ERROR: Tailscale SSH is disabled." >&2
+            status=1
+          fi
+          if ss -ltnH 'sport = :22' | grep -q .; then
+            echo "ERROR: something is listening on port 22 outside Tailscale SSH." >&2
+            ss -ltnp 'sport = :22' >&2
+            status=1
+          else
+            echo "OK: no kernel listener on port 22; SSH is served only by Tailscale SSH."
+          fi
+          [ "$status" -eq 0 ] || exit 1
+      - name: Show freed resources
+        run: |
+          echo "CPUs:"; nproc
+          echo "Memory (No Swap):"; free -h
+          echo "Disk Space Available:"; df -h
+          echo "OS:"; . /etc/os-release && echo "$PRETTY_NAME"
+      - name: Keep session alive and monitor runner chain
+        run: |
+          set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
+          echo "Connect from VS Code Remote-SSH using the host alias: GitHub-Ephemeral"
+          echo "Or from a terminal: ssh GitHub-Ephemeral"
+          echo "gh and glab are installed and authenticated."
+          echo "Self-renewing cloud chain is active for FronxTweaks."
+          printf '#!/usr/bin/env bash\necho "Creating stop marker..."\ntouch /tmp/ephemeral-stop-chain\necho "Runner chain will stop when this session terminates."\n' > /usr/local/bin/stop-ephemeral
+          chmod +x /usr/local/bin/stop-ephemeral
+          MAX_MINUTES=345
+          START_TIME=$(date +%s)
+          while true; do
+            ELAPSED_MIN=$(( ($(date +%s) - START_TIME) / 60 ))
+            if [ "$ELAPSED_MIN" -ge "$MAX_MINUTES" ]; then
+              echo "[$(date)] Reached ${ELAPSED_MIN}m (near 360m limit). Handing off to successor runner..."
+              break
+            fi
+            echo "[$(date)] FronxTweaks runner active (${ELAPSED_MIN}m / ${MAX_MINUTES}m elapsed)"
+            sleep 300
+          done
+      - name: Dispatch successor runner on handoff or exit
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/ephemeral-stop-chain ]; then
+            echo "Stop chain marker detected. Skipping successor dispatch."
+            exit 0
+          fi
+          if [ "${{ inputs.auto_renew }}" = "false" ]; then
+            echo "Auto-renew disabled via input. Skipping successor dispatch."
+            exit 0
+          fi
+          if [ -f /tmp/successor-dispatched ]; then
+            echo "Successor already dispatched."
+            exit 0
+          fi
+          touch /tmp/successor-dispatched
+          echo "Dispatching successor workflow for FronxTweaks..."
+          gh workflow run FronxTweaks.yml -R FronXOX/Ephemeral --ref main || \
+            gh workflow run "${{ github.workflow }}" -R "${{ github.repository }}" --ref "${{ github.ref_name }}" || true
+          echo "Successor workflow dispatched successfully."
+      - name: Clean up Tailscale node on exit
+        if: always()
+        run: |
+          tailscale logout || true

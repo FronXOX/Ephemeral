@@ -194,7 +194,8 @@ jobs:
           fi
           touch /tmp/successor-dispatched
           echo "Dispatching successor workflow in FronXOX/Ephemeral..."
-          gh workflow run main.yml -R FronXOX/Ephemeral --ref main || gh workflow run "${{ github.workflow }}" -R "${{ github.repository }}" --ref "${{ github.ref_name }}" || true
+          gh workflow run Ephemeral.yml -R FronXOX/Ephemeral --ref main || \
+            gh workflow run "${{ github.workflow }}" -R "${{ github.repository }}" --ref "${{ github.ref_name }}" || true
           echo "Successor workflow dispatched successfully."
       - name: Clean up Tailscale node on exit
         if: always()
