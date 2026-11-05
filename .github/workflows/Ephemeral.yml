@@ -1,7 +1,15 @@
 name: GitHub Ephemeral Runner with Tailscale SSH
 on:
   workflow_dispatch:
-permissions: {}
+    inputs:
+      auto_renew:
+        description: 'Auto-renew chain by dispatching successor on exit'
+        required: false
+        default: 'true'
+        type: string
+permissions:
+  actions: write
+  contents: read
 jobs:
   tailscale-ssh:
     runs-on: ubuntu-26.04
@@ -72,16 +80,18 @@ jobs:
           glab --version
           printf '%s' "$TOKEN_GITLAB_KEY" | glab auth login --stdin --hostname gitlab.com
           glab config set git_protocol https --host gitlab.com
+          git config --global url."https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/".insteadOf "https://gitlab.com/"
           glab auth status 2>&1 | head -5
       - name: Clone workspace repositories
         run: |
           set -euo pipefail
           set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
           mkdir -p /root/WorkHUB && cd /root/WorkHUB
-          gh repo clone FronXOX/FronxTweaks || git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/FronxTweaks.git"
-          gh repo clone FronXOX/JourneyTo510 || git clone "https://x-access-token:${TOKEN_GITHUB_KEY}@github.com/FronXOX/JourneyTo510.git"
-          glab repo clone shovitdutta11/FronxMods || git clone "https://oauth2:${TOKEN_GITLAB_KEY}@gitlab.com/shovitdutta11/FronxMods.git"
+          gh repo clone FronXOX/FronxTweaks
+          gh repo clone FronXOX/JourneyTo510
+          GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 glab repo clone shovitdutta11/FronxMods
           ls -la /root/WorkHUB
+          echo '[ -d /root/WorkHUB ] && cd /root/WorkHUB' >> /root/.bashrc
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
@@ -146,16 +156,46 @@ jobs:
           echo "Memory (No Swap):"; free -h
           echo "Disk Space Available:"; df -h
           echo "OS:"; . /etc/os-release && echo "$PRETTY_NAME"
-      - name: Keep session alive - max 360 minutes
+      - name: Keep session alive and monitor runner chain
         run: |
           set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
           echo "Connect from VS Code Remote-SSH using the host alias: GitHub-Ephemeral"
           echo "Or from a terminal: ssh GitHub-Ephemeral"
           echo "gh and glab are installed and authenticated."
+          echo "Self-renewing cloud chain is active."
+          printf '#!/usr/bin/env bash\necho "Creating stop marker..."\ntouch /tmp/ephemeral-stop-chain\necho "Runner chain will stop when this session terminates."\n' > /usr/local/bin/stop-ephemeral
+          chmod +x /usr/local/bin/stop-ephemeral
+          MAX_MINUTES=345
+          START_TIME=$(date +%s)
           while true; do
-            echo "[$(date)] GitHub ephemeral runner active"
+            ELAPSED_MIN=$(( ($(date +%s) - START_TIME) / 60 ))
+            if [ "$ELAPSED_MIN" -ge "$MAX_MINUTES" ]; then
+              echo "[$(date)] Reached ${ELAPSED_MIN}m (near 360m limit). Handing off to successor runner..."
+              break
+            fi
+            echo "[$(date)] Runner active (${ELAPSED_MIN}m / ${MAX_MINUTES}m elapsed)"
             sleep 300
           done
+      - name: Dispatch successor runner on handoff or exit
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f /tmp/ephemeral-stop-chain ]; then
+            echo "Stop chain marker detected. Skipping successor dispatch."
+            exit 0
+          fi
+          if [ "${{ inputs.auto_renew }}" = "false" ]; then
+            echo "Auto-renew disabled via input. Skipping successor dispatch."
+            exit 0
+          fi
+          if [ -f /tmp/successor-dispatched ]; then
+            echo "Successor already dispatched."
+            exit 0
+          fi
+          touch /tmp/successor-dispatched
+          echo "Dispatching successor workflow in FronXOX/Ephemeral..."
+          gh workflow run main.yml -R FronXOX/Ephemeral --ref main || gh workflow run "${{ github.workflow }}" -R "${{ github.repository }}" --ref "${{ github.ref_name }}" || true
+          echo "Successor workflow dispatched successfully."
       - name: Clean up Tailscale node on exit
         if: always()
         run: |
