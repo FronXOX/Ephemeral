@@ -45,7 +45,13 @@ jobs:
           mkdir -p /root/.config
           starship preset nerd-font-symbols -o /root/.config/starship.toml
           echo 'eval "$(starship init bash)"' >> /root/.bashrc
+          echo 'eval "$(starship init bash)"' >> /root/.profile
+          echo 'eval "$(starship init bash)"' >> /root/.bash_profile
           echo 'eval "$(starship init bash)"' >> /etc/bash.bashrc
+          echo 'eval "$(starship init bash)"' > /etc/profile.d/starship.sh
+          chmod +x /etc/profile.d/starship.sh
+          echo '[ -f ~/.bashrc ] && . ~/.bashrc' >> /root/.bash_profile
+          echo '[ -f ~/.bashrc ] && . ~/.bashrc' >> /root/.profile
           starship --version
       - name: Install and authenticate GitHub CLI (gh)
         run: |
@@ -102,6 +108,9 @@ jobs:
           uv tool install hermes-agent || uv pip install --system hermes-agent
           echo "PATH=/root/.bun/bin:/root/.local/bin:$PATH" > /root/.ephemeral-path
           echo "export PATH=\"/root/.bun/bin:/root/.local/bin:\$PATH\"" >> /etc/profile.d/ephemeral-path.sh
+          echo 'export PATH="/root/.bun/bin:/root/.local/bin:$PATH"' >> /root/.bashrc
+          echo 'export PATH="/root/.bun/bin:/root/.local/bin:$PATH"' >> /root/.profile
+          echo "PATH=/root/.bun/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/environment
           echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
       - name: Remove any public SSH exposure
         run: |
