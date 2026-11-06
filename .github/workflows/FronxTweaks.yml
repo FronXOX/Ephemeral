@@ -131,6 +131,10 @@ jobs:
           sed -i 's|^\. "/etc/skel/.cargo/env"|[ -f /etc/skel/.cargo/env ] \&\& . /etc/skel/.cargo_env|' /root/.bashrc 2>/dev/null || true
           echo "PATH=/root/.bun/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/environment
           echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
+          echo "=== Installing fast-cli ==="
+          npm install -g fast-cli 2>&1 | tail -3
+          fast --version
+          echo "fast-cli installed: $(which fast)"
       - name: Setup VS Code Remote settings
         run: |
           set -euo pipefail
