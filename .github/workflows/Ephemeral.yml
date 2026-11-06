@@ -98,6 +98,21 @@ jobs:
           GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 glab repo clone shovitdutta11/FronxMods
           ls -la /root/WorkHUB
           echo '[ -d /root/WorkHUB ] && cd /root/WorkHUB' >> /root/.bashrc
+          echo '[ -d /root/WorkHUB ] && cd /root/WorkHUB' >> /root/.bash_profile
+          echo '[ -d /root/WorkHUB ] && cd /root/WorkHUB' >> /root/.profile
+          echo "VS Code work directory set to /root/WorkHUB for Combined runner"
+          mkdir -p /root/.config/Code/User/workspaces
+          cat > /root/.config/Code/User/workspaces/Combined.code-workspace << 'WSEOF'
+          {
+            "folders": [
+              { "path": "/root/WorkHUB/FronxTweaks" },
+              { "path": "/root/WorkHUB/JourneyTo510" },
+              { "path": "/root/WorkHUB/FronxMods" }
+            ],
+            "settings": {}
+          }
+          WSEOF
+          echo "VS Code workspace created: /root/.config/Code/User/workspaces/Combined.code-workspace"
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail

@@ -96,6 +96,19 @@ jobs:
           GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 glab repo clone shovitdutta11/FronxMods
           ls -la /root/FronxMods
           echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.bashrc
+          echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.bash_profile
+          echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.profile
+          echo "VS Code work directory set to /root/FronxMods"
+          mkdir -p /root/.config/Code/User/workspaces
+          cat > /root/.config/Code/User/workspaces/FronxMods.code-workspace << 'WSEOF'
+          {
+            "folders": [
+              { "path": "/root/FronxMods" }
+            ],
+            "settings": {}
+          }
+          WSEOF
+          echo "VS Code workspace created: /root/.config/Code/User/workspaces/FronxMods.code-workspace"
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail

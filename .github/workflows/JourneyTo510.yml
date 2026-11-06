@@ -96,6 +96,19 @@ jobs:
           gh repo clone FronXOX/JourneyTo510
           ls -la /root/JourneyTo510
           echo '[ -d /root/JourneyTo510 ] && cd /root/JourneyTo510' >> /root/.bashrc
+          echo '[ -d /root/JourneyTo510 ] && cd /root/JourneyTo510' >> /root/.bash_profile
+          echo '[ -d /root/JourneyTo510 ] && cd /root/JourneyTo510' >> /root/.profile
+          echo "VS Code work directory set to /root/JourneyTo510"
+          mkdir -p /root/.config/Code/User/workspaces
+          cat > /root/.config/Code/User/workspaces/JourneyTo510.code-workspace << 'WSEOF'
+          {
+            "folders": [
+              { "path": "/root/JourneyTo510" }
+            ],
+            "settings": {}
+          }
+          WSEOF
+          echo "VS Code workspace created: /root/.config/Code/User/workspaces/JourneyTo510.code-workspace"
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail

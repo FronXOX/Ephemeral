@@ -96,6 +96,19 @@ jobs:
           gh repo clone FronXOX/FronxTweaks
           ls -la /root/FronxTweaks
           echo '[ -d /root/FronxTweaks ] && cd /root/FronxTweaks' >> /root/.bashrc
+          echo '[ -d /root/FronxTweaks ] && cd /root/FronxTweaks' >> /root/.bash_profile
+          echo '[ -d /root/FronxTweaks ] && cd /root/FronxTweaks' >> /root/.profile
+          echo "VS Code work directory set to /root/FronxTweaks"
+          mkdir -p /root/.config/Code/User/workspaces
+          cat > /root/.config/Code/User/workspaces/FronxTweaks.code-workspace << 'WSEOF'
+          {
+            "folders": [
+              { "path": "/root/FronxTweaks" }
+            ],
+            "settings": {}
+          }
+          WSEOF
+          echo "VS Code workspace created: /root/.config/Code/User/workspaces/FronxTweaks.code-workspace"
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
