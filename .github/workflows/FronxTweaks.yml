@@ -153,6 +153,35 @@ jobs:
           VSCEOF
           echo "VS Code settings written to /root/.config/Code/User/settings.json"
           echo "Extensions listed in remote.SSH.defaultExtensions will auto-install on connect."
+      - name: Setup VS Code Settings Sync (GitHub account)
+        run: |
+          set -euo pipefail
+          mkdir -p /root/.config/Code/User
+          if ! command -v code &>/dev/null; then
+            curl -fsSL https://update.code.visualstudio.com/commit:stable/server-linux-x64/stable -o /tmp/vscode-server.tar.gz
+            tar -xzf /tmp/vscode-server.tar.gz -C /tmp
+            VS_SERVER_DIR=$(find /tmp -maxdepth 1 -type d -name "vscode-server-linux-x64*" | head -1)
+            ln -sf "$VS_SERVER_DIR/bin/remote-cli/code" /usr/local/bin/code 2>/dev/null || true
+            echo "VS Code Server CLI installed at /usr/local/bin/code"
+          fi
+          cat > /usr/local/bin/vscode-signin-github << 'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export PATH="/root/.bun/bin:/root/.local/bin:$PATH"
+          echo "============================================================"
+          echo "VS Code GitHub Sign-in for Settings Sync"
+          echo "============================================================"
+          echo ""
+          echo "1. Copy the device code shown below"
+          echo "2. Open https://github.com/login/device in your browser"
+          echo "3. Paste the code and authorize VS Code"
+          echo "4. Settings Sync will automatically pull your settings"
+          echo ""
+          code --user-data-dir /root/.config/Code --remote-name GitHub-Ephemeral --enable-sync || true
+          SCRIPT
+          chmod +x /usr/local/bin/vscode-signin-github
+          echo "Run: ssh GitHub-Ephemeral 'vscode-signin-github' to complete GitHub sign-in"
+          echo "Then VS Code Settings Sync will keep every runner 100% in sync with your local settings."
       - name: Remove any public SSH exposure
         run: |
           for unit in ssh.socket ssh.service sshd.service; do
