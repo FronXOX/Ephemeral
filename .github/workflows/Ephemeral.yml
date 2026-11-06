@@ -182,7 +182,7 @@ jobs:
       - name: Install, connect, and enable Tailscale SSH
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          tailscale up --auth-key="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="github-ephemeral-${{ github.run_id }}" --ssh --accept-risk=lose-ssh --timeout=120s
+          tailscale up --auth-key="${{ secrets.TAILSCALE_AUTHKEY }}" --hostname="github-ephemeral-combined-${{ github.run_id }}" --ssh --accept-risk=lose-ssh --timeout=120s
           TS_IP=""
           for _ in $(seq 1 45); do
             TS_IP="$(tailscale ip -4 2>/dev/null | head -n1 || true)"
