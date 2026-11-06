@@ -112,6 +112,7 @@ jobs:
           echo "export PATH=\"/root/.bun/bin:/root/.local/bin:\$PATH\"" >> /etc/profile.d/ephemeral-path.sh
           echo 'export PATH="/root/.bun/bin:/root/.local/bin:$PATH"' >> /root/.bashrc
           echo 'export PATH="/root/.bun/bin:/root/.local/bin:$PATH"' >> /root/.profile
+          sed -i 's|^\. "/etc/skel/.cargo/env"|[ -f /etc/skel/.cargo/env ] \&\& . /etc/skel/.cargo_env|' /root/.profile 2>/dev/null || true
           echo "PATH=/root/.bun/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/environment
           echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
       - name: Remove any public SSH exposure
