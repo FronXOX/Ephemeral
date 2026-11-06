@@ -36,7 +36,7 @@ jobs:
       - name: Install base utilities
         run: |
           apt-get update
-          apt-get install -y git curl wget tar unzip build-essential jq iproute2 xz-utils
+          apt-get install -y git curl wget tar unzip build-essential jq iproute2 xz-utils libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libgbm1 libgtk-3-0 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libasound2t64 libxtst6 ca-certificates fonts-liberation libxss1
       - name: Install and configure Starship prompt
         run: |
           set -euo pipefail
