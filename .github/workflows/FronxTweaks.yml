@@ -113,6 +113,46 @@ jobs:
           sed -i 's|^\. "/etc/skel/.cargo/env"|[ -f /etc/skel/.cargo/env ] \&\& . /etc/skel/.cargo_env|' /root/.profile 2>/dev/null || true
           echo "PATH=/root/.bun/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/environment
           echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
+      - name: Setup VS Code Remote settings
+        run: |
+          set -euo pipefail
+          mkdir -p /root/.config/Code/User
+          cat > /root/.config/Code/User/settings.json << 'VSCEOF'
+          {
+            "workbench.colorTheme": "Catppuccin Mocha",
+            "workbench.iconTheme": "let-icons",
+            "workbench.productIconTheme": "material-product-icons",
+            "editor.fontFamily": "'Roboto Condensed', 'RobotoCondensed', 'Segoe UI Emoji', sans-serif",
+            "editor.fontSize": 13,
+            "editor.fontWeight": "bold",
+            "editor.fontLigatures": true,
+            "editor.formatOnSave": true,
+            "editor.tabSize": 2,
+            "files.autoSave": "afterDelay",
+            "files.trimTrailingWhitespace": true,
+            "files.trimFinalNewlines": true,
+            "editor.bracketPairColorization.enabled": true,
+            "editor.guides.bracketPairs": "active",
+            "editor.cursorWidth": 2,
+            "editor.cursorBlinking": "phase",
+            "editor.smoothScrolling": true,
+            "editor.linkedEditing": true,
+            "terminal.integrated.fontFamily": "'IosevkaTermSlab Nerd Font', 'IosevkaTermSlab Nerd Font Mono', monospace",
+            "terminal.integrated.fontWeight": "bold",
+            "terminal.integrated.scrollback": 100000,
+            "git.autofetch": true,
+            "git.confirmSync": false,
+            "security.workspace.trust.enabled": false,
+            "remote.SSH.remotePlatform": {
+              "GitHub-Ephemeral": "linux",
+              "GitHub-JourneyTo510": "linux",
+              "GitHub-FronxMods": "linux",
+              "GitHub-FronxTweaks": "linux"
+            }
+          }
+          VSCEOF
+          echo "VS Code settings written to /root/.config/Code/User/settings.json"
+          echo "Extensions listed in remote.SSH.defaultExtensions will auto-install on connect."
       - name: Remove any public SSH exposure
         run: |
           for unit in ssh.socket ssh.service sshd.service; do
