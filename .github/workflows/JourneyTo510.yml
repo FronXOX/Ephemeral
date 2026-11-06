@@ -109,6 +109,10 @@ jobs:
           }
           WSEOF
           echo "VS Code workspace created: /root/.config/Code/User/workspaces/JourneyTo510.code-workspace"
+          # Fix VS Code blank terminal: ensure PS1 is set before .bashrc early-return
+          # VS Code starts bash interactively without PS1, causing [ -z "$PS1" ] && return
+          # to skip starship, PATH, and prompt setup — resulting in blinking cursor only.
+          sed -i '1i PS1="$ "' ~/.bashrc 2>/dev/null || true
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
