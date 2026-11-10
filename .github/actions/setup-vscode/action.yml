@@ -1,0 +1,122 @@
+name: 'Setup VS Code Remote & Workspace'
+description: 'Smart configuration of VS Code workspace and server-relevant settings without hardcoded themes or aliases'
+inputs:
+  workspace-name:
+    description: 'Name of the workspace file (e.g. Combined, FronxMods)'
+    required: true
+  repo-dirs:
+    description: 'Space-separated list of cloned repo folder names or paths relative to work-root'
+    required: false
+    default: ''
+  work-root:
+    description: 'Base directory where repositories are located'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure VS Code workspace and settings
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Resolve target home directory (favor /root on runner if root, else $HOME)
+        TARGET_HOME="${HOME:-/root}"
+        if [ "$(id -u)" -eq 0 ]; then
+          TARGET_HOME="/root"
+        fi
+
+        WORK_ROOT="${{ inputs.work-root }}"
+        if [ -z "$WORK_ROOT" ]; then
+          WORK_ROOT="$TARGET_HOME"
+        fi
+
+        WS_NAME="${{ inputs.workspace-name }}"
+        REPO_DIRS="${{ inputs.repo-dirs }}"
+
+        # 1. Terminal / Shell PS1 Fix
+        # VS Code Remote starts bash interactively without PS1, causing [ -z "$PS1" ] && return
+        # to skip starship, PATH, and prompt setup. Ensure PS1 is initialized first.
+        if [ -f "$TARGET_HOME/.bashrc" ]; then
+          sed -i '1{/^PS1=/!i PS1="$ "\n}' "$TARGET_HOME/.bashrc" 2>/dev/null || true
+        else
+          echo 'PS1="$ "' > "$TARGET_HOME/.bashrc"
+        fi
+
+        # 2. Dynamic .code-workspace generation
+        WS_DIR="$TARGET_HOME/.config/Code/User/workspaces"
+        mkdir -p "$WS_DIR"
+        WS_FILE="$WS_DIR/${WS_NAME}.code-workspace"
+
+        # Discover folders dynamically: from repo-dirs input, or scanning directories in WORK_ROOT
+        python3 - << 'PYEOF' "$WORK_ROOT" "$REPO_DIRS" "$WS_FILE"
+        import os, sys, json
+
+        work_root = os.path.abspath(sys.argv[1])
+        repo_dirs_input = sys.argv[2].strip()
+        ws_file = sys.argv[3]
+
+        folder_paths = []
+        if repo_dirs_input:
+            for item in repo_dirs_input.split():
+                candidate = item if os.path.isabs(item) else os.path.join(work_root, item)
+                if os.path.isdir(candidate):
+                    folder_paths.append(os.path.abspath(candidate))
+                else:
+                    # Keep path even if checkout happens in parallel or is expected
+                    folder_paths.append(os.path.abspath(candidate))
+        else:
+            # Auto-detect git repositories or subdirectories under work_root
+            if os.path.isdir(work_root):
+                for entry in sorted(os.listdir(work_root)):
+                    p = os.path.join(work_root, entry)
+                    if os.path.isdir(p) and not entry.startswith('.'):
+                        folder_paths.append(p)
+            if not folder_paths:
+                folder_paths.append(work_root)
+
+        ws_data = {
+            "folders": [{"path": p} for p in folder_paths],
+            "settings": {}
+        }
+
+        os.makedirs(os.path.dirname(ws_file), exist_ok=True)
+        with open(ws_file, "w") as f:
+            json.dump(ws_data, f, indent=2)
+            f.write("\n")
+        print(f"Generated workspace at {ws_file} with folders: {folder_paths}")
+        PYEOF
+
+        # 3. Server-relevant settings.json with jq merge
+        USER_CONFIG_DIR="$TARGET_HOME/.config/Code/User"
+        mkdir -p "$USER_CONFIG_DIR"
+        SETTINGS_FILE="$USER_CONFIG_DIR/settings.json"
+
+        # Server-only settings template
+        # Personal preferences (theme, icons, fonts, client-side SSH platform aliases)
+        # are omitted so Settings Sync and Boss Fronx's local VS Code handle them.
+        cat > /tmp/server-settings.json << 'JSONEOF'
+        {
+          "files.autoSave": "afterDelay",
+          "files.trimTrailingWhitespace": true,
+          "files.trimFinalNewlines": true,
+          "editor.formatOnSave": true,
+          "editor.tabSize": 2,
+          "terminal.integrated.scrollback": 100000,
+          "git.autofetch": true,
+          "git.confirmSync": false,
+          "security.workspace.trust.enabled": false
+        }
+        JSONEOF
+
+        # Merge with existing settings.json if present, preserving any existing keys
+        if [ -f "$SETTINGS_FILE" ] && [ -s "$SETTINGS_FILE" ]; then
+          jq -s '.[0] * .[1]' "$SETTINGS_FILE" /tmp/server-settings.json > /tmp/merged-settings.json 2>/dev/null || cp /tmp/server-settings.json /tmp/merged-settings.json
+          mv /tmp/merged-settings.json "$SETTINGS_FILE"
+        else
+          cp /tmp/server-settings.json "$SETTINGS_FILE"
+        fi
+        rm -f /tmp/server-settings.json
+
+        echo "VS Code server settings written to $SETTINGS_FILE"

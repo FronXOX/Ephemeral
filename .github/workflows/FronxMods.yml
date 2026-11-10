@@ -143,20 +143,6 @@ jobs:
           echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.bash_profile
           echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.profile
           echo "VS Code work directory set to /root/FronxMods"
-          mkdir -p /root/.config/Code/User/workspaces
-          cat > /root/.config/Code/User/workspaces/FronxMods.code-workspace << 'WSEOF'
-          {
-            "folders": [
-              { "path": "/root/FronxMods" }
-            ],
-            "settings": {}
-          }
-          WSEOF
-          echo "VS Code workspace created: /root/.config/Code/User/workspaces/FronxMods.code-workspace"
-          # Fix VS Code blank terminal: ensure PS1 is set before .bashrc early-return
-          # VS Code starts bash interactively without PS1, causing [ -z "$PS1" ] && return
-          # to skip starship, PATH, and prompt setup — resulting in blinking cursor only.
-          sed -i '1i PS1="$ "' ~/.bashrc 2>/dev/null || true
       - name: Install bun, uv, and agent CLIs
         run: |
           set -euo pipefail
@@ -176,56 +162,15 @@ jobs:
           echo "PATH=/root/.bun/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/environment
           echo "installed bun binaries: $(ls /root/.bun/bin 2>/dev/null | tr '\n' ' ')"
           echo "=== Installing fast-cli ==="
-          npm install -g fast-cli 2>&1 | tail -3
+          bun add -g fast-cli 2>&1 | tail -3
           fast --version
           echo "fast-cli installed: $(which fast)"
-      - name: Setup VS Code Remote settings
-        run: |
-          set -euo pipefail
-          mkdir -p /root/.config/Code/User
-          cat > /root/.config/Code/User/settings.json << 'VSCEOF'
-          {
-            "workbench.colorTheme": "Catppuccin Mocha",
-            "workbench.iconTheme": "let-icons",
-            "workbench.productIconTheme": "material-product-icons",
-            "editor.fontFamily": "'Roboto Condensed', 'RobotoCondensed', 'Segoe UI Emoji', sans-serif",
-            "editor.fontSize": 13,
-            "editor.fontWeight": "bold",
-            "editor.fontLigatures": true,
-            "editor.formatOnSave": true,
-            "editor.tabSize": 2,
-            "files.autoSave": "afterDelay",
-            "files.trimTrailingWhitespace": true,
-            "files.trimFinalNewlines": true,
-            "editor.bracketPairColorization.enabled": true,
-            "editor.guides.bracketPairs": "active",
-            "editor.cursorWidth": 2,
-            "editor.cursorBlinking": "phase",
-            "editor.smoothScrolling": true,
-            "editor.linkedEditing": true,
-            "terminal.integrated.fontFamily": "'IosevkaTermSlab Nerd Font', 'IosevkaTermSlab Nerd Font Mono', monospace",
-            "terminal.integrated.fontWeight": "bold",
-            "terminal.integrated.scrollback": 100000,
-            "git.autofetch": true,
-            "git.confirmSync": false,
-            "security.workspace.trust.enabled": false,
-            "remote.SSH.remotePlatform": {
-              "GitHub-Ephemeral": "linux",
-              "GitHub-JourneyTo510": "linux",
-              "GitHub-FronxMods": "linux",
-              "GitHub-FronxTweaks": "linux"
-            }
-          }
-          VSCEOF
-          echo "VS Code settings written to /root/.config/Code/User/settings.json"
-          echo "Extensions listed in remote.SSH.defaultExtensions will auto-install on connect."
-      - name: Setup VS Code Settings Sync (GitHub account)
-        run: |
-          set -euo pipefail
-          mkdir -p /root/.config/Code/User
-          echo "VS Code settings written to /root/.config/Code/User/settings.json"
-          echo "VS Code Settings Sync: connect via VS Code Remote-SSH, then sign in with GitHub in VS Code Account settings."
-          echo "Settings Sync will auto-sync all themes, extensions, fonts, and settings to every runner."
+      - name: Setup VS Code Remote & Workspace
+        uses: ./.github/actions/setup-vscode
+        with:
+          workspace-name: 'FronxMods'
+          work-root: '/root'
+          repo-dirs: 'FronxMods'
       - name: Remove any public SSH exposure
         run: |
           for unit in ssh.socket ssh.service sshd.service; do
