@@ -184,12 +184,12 @@ jobs:
           bun install
           # Apply drizzle migrations to PostgreSQL LocalDB (POSTGRESQL_DATABASE_URL
           # comes from the repo-root local.env loaded via the backend env wildcard)
-          bun run db:push
+          bun run src/database/push-schema.ts
           # One-way fill SQLite local.db -> PostgreSQL when the catalog is empty;
-          # idempotent, skips when LocalDB already has rows
-          bun run db:hydrate
+          # idempotent, skips when LocalDB already has rows (menu-CLI headless path)
+          bun run cli -- db:hydrate
           # Probe both stores (PostgreSQL + shareable local.db); exits 1 on failure
-          bun run db:preflight
+          bun run src/database/ci-db-preflight.ts
       - name: Setup VS Code Remote & Workspace
         uses: ./.github/actions/setup-vscode
         with:
