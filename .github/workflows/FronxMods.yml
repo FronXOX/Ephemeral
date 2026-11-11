@@ -113,7 +113,7 @@ jobs:
           printf 'GH_TOKEN=%s\nGITHUB_TOKEN=%s\nTOKEN_GITHUB_KEY=%s\nTOKEN_GITLAB_KEY=%s\nGITLAB_TOKEN=%s\nGLAB_TOKEN=%s\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /root/.ephemeral-env
           chmod 600 /root/.ephemeral-env
           printf 'export GH_TOKEN="%s"\nexport GITHUB_TOKEN="%s"\nexport GITLAB_TOKEN="%s"\nexport GLAB_TOKEN="%s"\n' "$TOKEN_GITHUB_KEY" "$TOKEN_GITHUB_KEY" "${TOKEN_GITLAB_KEY:-}" "${TOKEN_GITLAB_KEY:-}" > /etc/profile.d/ephemeral-tokens.sh
-          chmod 644 /etc/profile.d/ephemeral-tokens.sh
+          chmod 600 /etc/profile.d/ephemeral-tokens.sh
           gh auth status
       - name: Install and authenticate GitLab CLI (glab)
         run: |
@@ -138,6 +138,17 @@ jobs:
           set -a; [ -f /root/.ephemeral-env ] && . /root/.ephemeral-env; set +a
           cd /root
           GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 glab repo clone shovitdutta11/FronxMods
+          cd /root/FronxMods
+          command -v git-lfs >/dev/null 2>&1 || { apt-get update && apt-get install -y git-lfs; }
+          git lfs install
+          # Boot needs the shareable SQLite seed (src/data/local.db) and the LFS-tracked
+          # bun.lock files; heavy LFS objects (jars/APKs/keystores) stay on-demand pulls.
+          git lfs pull --include="*.db,*.sqlite,*.sqlite3,*.lock"
+          # Fail fast if the seed DB is still an LFS pointer instead of a real SQLite file
+          if [ -f folders/backend/src/data/local.db ] && head -c 100 folders/backend/src/data/local.db | grep -q 'git-lfs'; then
+            echo "ERROR: folders/backend/src/data/local.db is still a Git LFS pointer after 'git lfs pull'." >&2
+            exit 1
+          fi
           ls -la /root/FronxMods
           echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.bashrc
           echo '[ -d /root/FronxMods ] && cd /root/FronxMods' >> /root/.bash_profile
@@ -165,6 +176,20 @@ jobs:
           bun add -g fast-cli 2>&1 | tail -3
           fast --version
           echo "fast-cli installed: $(which fast)"
+      - name: Install backend, push PostgreSQL schema, hydrate LocalDB from local.db
+        run: |
+          set -euo pipefail
+          export PATH="/root/.bun/bin:/root/.local/bin:$PATH"
+          cd /root/FronxMods/folders/backend
+          bun install
+          # Apply drizzle migrations to PostgreSQL LocalDB (POSTGRESQL_DATABASE_URL
+          # comes from the repo-root local.env loaded via the backend env wildcard)
+          bun run db:push
+          # One-way fill SQLite local.db -> PostgreSQL when the catalog is empty;
+          # idempotent, skips when LocalDB already has rows
+          bun run db:hydrate
+          # Probe both stores (PostgreSQL + shareable local.db); exits 1 on failure
+          bun run db:preflight
       - name: Setup VS Code Remote & Workspace
         uses: ./.github/actions/setup-vscode
         with:
